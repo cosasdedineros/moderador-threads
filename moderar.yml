@@ -1,0 +1,48 @@
+name: Moderar Threads
+
+on:
+  workflow_dispatch:        # permite lanzarlo a mano desde la pestaña Actions
+  # schedule:               # quita el «#» de estas dos líneas cuando el token de Threads esté listo
+  #   - cron: "*/20 * * * *"
+
+permissions:
+  contents: write           # para guardar estado.json en el repositorio
+
+concurrency:
+  group: moderar-threads
+  cancel-in-progress: false
+
+jobs:
+  moderar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install requests
+
+      - name: Ejecutar moderador
+        run: python moderar.py
+        env:
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MODO_PRUEBA: "si"   # cambia a "no" cuando quieras que conteste de verdad
+
+      - name: Guardar estado
+        if: always()
+        run: |
+          [ -f estado.json ] || exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add estado.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Actualizar estado"
+            git push
+          fi
