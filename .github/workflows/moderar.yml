@@ -33,7 +33,7 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          MODO_PRUEBA: "si"   # cambia a "no" cuando quieras que conteste de verdad
+          MODO_PRUEBA: "no"   # cambia a "no" cuando quieras que conteste de verdad
 
       - name: Guardar estado
         if: always()
