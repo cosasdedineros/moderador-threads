@@ -2,8 +2,8 @@ name: Moderar Threads
 
 on:
   workflow_dispatch:        # permite lanzarlo a mano desde la pestaña Actions
-  # schedule:               # quita el «#» de estas dos líneas cuando el token de Threads esté listo
-  #   - cron: "*/20 * * * *"
+  schedule:               # quita el «#» de estas dos líneas cuando el token de Threads esté listo
+    - cron: "*/20 * * * *"
 
 permissions:
   contents: write           # para guardar estado.json en el repositorio
