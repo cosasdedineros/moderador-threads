@@ -7,7 +7,7 @@ Cada ejecución:
      con el POST y el COMENTARIO.
   3. Si Gemini devuelve un texto, esa es la respuesta que publicarías:
        - con MODO_PRUEBA=si te la propone por Telegram y no publica nada;
-       - con MODO_PRUEBA=no la publica (como mucho una por persona y día).
+       - con MODO_PRUEBA=no la publica (con un máximo de 5 respuestas automáticas por ejecución).
      Si devuelve NO RESPONDER, te avisa por Telegram para que contestes tú.
      Si devuelve SPAM (solo ocurre si añades esa orden al prompt), lo ignora.
 
@@ -26,12 +26,12 @@ import requests
 # ------------------------- Ajustes -------------------------
 DIAS_REVISION = 3                  # solo se revisan posts de los últimos N días
 MAX_POSTS = 25                     # máximo de posts a revisar por ejecución
-MAX_RESPUESTAS_POR_EJECUCION = 5   # tope de respuestas automáticas por ejecución
+MAX_RESPUESTAS_POR_EJECUCION = 100   # tope de respuestas automáticas por ejecución
 MAX_COMENTARIOS_POR_EJECUCION = 20 # tope de llamadas a Gemini por ejecución; el resto espera a la siguiente
 PAUSA_ENTRE_LLAMADAS = 4           # segundos entre llamadas a Gemini (cuota del plan gratuito)
 MAX_TEXTO = 500                    # caracteres de cada comentario que se envían
 MAX_TEXTO_POST = 1500              # caracteres del post que se envían
-MAX_RESPUESTA = 500                # límite de caracteres de una publicación en Threads
+MAX_RESPUESTA = 280                # límite de caracteres de una publicación en Threads
 ARCHIVO_ESTADO = "estado.json"
 
 THREADS_API = "https://graph.threads.net/v1.0"
@@ -518,7 +518,7 @@ def gestionar(estado, r, decision, respuesta, contadores):
         return
 
     if decision == "responder":
-                motivo = None
+        motivo = None
         if contadores["contestadas"] >= MAX_RESPUESTAS_POR_EJECUCION:
             motivo = "límite de respuestas de esta ejecución"
         elif len(respuesta) > MAX_RESPUESTA:
@@ -532,9 +532,10 @@ def gestionar(estado, r, decision, respuesta, contadores):
             telegram(f"🧪 PRUEBA: contestaría\n«{respuesta}»\n\n@{usuario}: {texto}\n{enlace}")
         else:
             contestar(r["id"], respuesta)
-                contadores["contestadas"] += 1
+        contadores["contestadas"] += 1
         return
 
+  
     # decision == "no": comentario normal, te avisa a ti para que contestes tú.
     telegram(f"💬 @{usuario}:\n{texto}\n\n{enlace}")
     contadores["avisos"] += 1
@@ -557,7 +558,7 @@ def main():
 
     vistos = set(estado["procesados"])
     nuevas = [r for r in respuestas if r["id"] not in vistos]
-       contadores = {"spam": 0, "contestadas": 0, "avisos": 0, "fallos": 0, "llamadas": 0}
+    contadores = {"spam": 0, "contestadas": 0, "avisos": 0, "fallos": 0, "llamadas": 0}
     error_ia = None
 
     for r in nuevas:
