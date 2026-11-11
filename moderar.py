@@ -24,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 
 # ------------------------- Ajustes -------------------------
-DIAS_REVISION = 3                  # solo se revisan posts de los últimos N días
+DIAS_REVISION = 8                  # solo se revisan posts de los últimos N días
 MAX_POSTS = 25                     # máximo de posts a revisar por ejecución
 MAX_RESPUESTAS_POR_EJECUCION = 100   # tope de respuestas automáticas por ejecución
 MAX_COMENTARIOS_POR_EJECUCION = 20 # tope de llamadas a Gemini por ejecución; el resto espera a la siguiente
