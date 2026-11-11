@@ -518,11 +518,8 @@ def gestionar(estado, r, decision, respuesta, contadores):
         return
 
     if decision == "responder":
-        ya_contestado_hoy = estado["respondidos"].get(huella(usuario)) == hoy()
-        motivo = None
-        if ya_contestado_hoy:
-            motivo = "ya le contesté hoy"
-        elif contadores["contestadas"] >= MAX_RESPUESTAS_POR_EJECUCION:
+                motivo = None
+        if contadores["contestadas"] >= MAX_RESPUESTAS_POR_EJECUCION:
             motivo = "límite de respuestas de esta ejecución"
         elif len(respuesta) > MAX_RESPUESTA:
             motivo = "la respuesta supera los 500 caracteres"
@@ -535,8 +532,7 @@ def gestionar(estado, r, decision, respuesta, contadores):
             telegram(f"🧪 PRUEBA: contestaría\n«{respuesta}»\n\n@{usuario}: {texto}\n{enlace}")
         else:
             contestar(r["id"], respuesta)
-        estado["respondidos"][huella(usuario)] = hoy()
-        contadores["contestadas"] += 1
+                contadores["contestadas"] += 1
         return
 
     # decision == "no": comentario normal, te avisa a ti para que contestes tú.
@@ -561,8 +557,7 @@ def main():
 
     vistos = set(estado["procesados"])
     nuevas = [r for r in respuestas if r["id"] not in vistos]
-    estado["respondidos"] = {k: v for k, v in estado["respondidos"].items() if v == hoy()}
-    contadores = {"spam": 0, "contestadas": 0, "avisos": 0, "fallos": 0, "llamadas": 0}
+       contadores = {"spam": 0, "contestadas": 0, "avisos": 0, "fallos": 0, "llamadas": 0}
     error_ia = None
 
     for r in nuevas:
