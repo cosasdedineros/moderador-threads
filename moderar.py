@@ -7,7 +7,7 @@ Cada ejecución:
      con el POST y el COMENTARIO.
   3. Si Gemini devuelve un texto, esa es la respuesta que publicarías:
        - con MODO_PRUEBA=si te la propone por Telegram y no publica nada;
-       - con MODO_PRUEBA=no la publica (con un máximo de 100 respuestas automáticas por ejecución).
+       - con MODO_PRUEBA=no la publica (con un máximo de 5 respuestas automáticas por ejecución).
      Si devuelve NO RESPONDER, te avisa por Telegram para que contestes tú.
      Si devuelve SPAM (solo ocurre si añades esa orden al prompt), lo ignora.
 
@@ -447,33 +447,23 @@ def threads_get(ruta, **params):
 
 
 def leer_respuestas(yo):
-    """Lee las conversaciones de tus posts y excluye comentarios ya contestados por ti."""
+    """Respuestas (de otras personas) a tus posts de los últimos DIAS_REVISION días.
+    Cada respuesta lleva también el texto de su post en 'post_texto'."""
     desde = datetime.now(timezone.utc) - timedelta(days=DIAS_REVISION)
     posts = threads_get("me/threads", fields="id,text,timestamp", limit=MAX_POSTS).get("data", [])
     resultado = []
-
     for p in posts:
         if datetime.strptime(p["timestamp"], "%Y-%m-%dT%H:%M:%S%z") < desde:
             continue
-
-        reps = threads_get(
-            f"{p['id']}/conversation",
-            fields="id,text,username,permalink,timestamp,replied_to,is_reply_owned_by_me",
-            limit=100
-        ).get("data", [])
-
-        respondidos_por_mi = {
-          r.get("replied_to", {}).get("id")
-          for r in reps
-          if r.get("is_reply_owned_by_me") and r.get("replied_to")
-        }
-
+        reps = threads_get(f"{p['id']}/replies",
+                           fields="id,text,username,permalink,timestamp",
+                           limit=50).get("data", [])
         for r in reps:
-            if not r.get("is_reply_owned_by_me") and r["id"] not in respondidos_por_mi:
+            if r.get("username") != yo:
                 r["post_texto"] = p.get("text") or "(post sin texto)"
                 resultado.append(r)
-
     return resultado
+
 
 def contestar(reply_id, texto):
     """Publica una respuesta: se crea el contenedor y se publica unos segundos después."""
@@ -532,7 +522,7 @@ def gestionar(estado, r, decision, respuesta, contadores):
         if contadores["contestadas"] >= MAX_RESPUESTAS_POR_EJECUCION:
             motivo = "límite de respuestas de esta ejecución"
         elif len(respuesta) > MAX_RESPUESTA:
-            motivo = "la respuesta supera los 280 caracteres"
+            motivo = "la respuesta supera los 500 caracteres"
         if motivo:
             telegram(f"⚠️ No contesto ({motivo}) @{usuario}:\n{texto}\n\n"
                      f"Respuesta sugerida:\n{respuesta}\n\n{enlace}")
