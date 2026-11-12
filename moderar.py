@@ -7,7 +7,7 @@ Cada ejecución:
      con el POST y el COMENTARIO.
   3. Si Gemini devuelve un texto, esa es la respuesta que publicarías:
        - con MODO_PRUEBA=si te la propone por Telegram y no publica nada;
-       - con MODO_PRUEBA=no la publica (con un máximo de 5 respuestas automáticas por ejecución).
+       - con MODO_PRUEBA=no la publica.
      Si devuelve NO RESPONDER, te avisa por Telegram para que contestes tú.
      Si devuelve SPAM (solo ocurre si añades esa orden al prompt), lo ignora.
 
@@ -19,14 +19,13 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import requests
 
 # ------------------------- Ajustes -------------------------
-DIAS_REVISION = 0                  # solo se revisan posts de los últimos N días
 MAX_POSTS = 25                     # máximo de posts a revisar por ejecución
-MAX_RESPUESTAS_POR_EJECUCION = 0   # tope de respuestas automáticas por ejecución
+MAX_RESPUESTAS_POR_EJECUCION = 0   # tope de respuestas automáticas por ejecución (0 = sin tope)
 MAX_COMENTARIOS_POR_EJECUCION = 20 # tope de llamadas a Gemini por ejecución; el resto espera a la siguiente
 PAUSA_ENTRE_LLAMADAS = 4           # segundos entre llamadas a Gemini (cuota del plan gratuito)
 MAX_TEXTO = 500                    # caracteres de cada comentario que se envían
@@ -447,8 +446,7 @@ def threads_get(ruta, **params):
 
 
 def leer_respuestas(yo):
-    """Respuestas de otras personas a tus posts."""
-    desde = datetime.now(timezone.utc) - timedelta(days=DIAS_REVISION)
+    """Respuestas de otras personas a tus últimos posts, sea cual sea la fecha del post."""
     posts = threads_get(
         "me/threads",
         fields="id,text,timestamp",
@@ -458,9 +456,6 @@ def leer_respuestas(yo):
     resultado = []
 
     for p in posts:
-        if datetime.strptime(p["timestamp"], "%Y-%m-%dT%H:%M:%S%z") < desde:
-            continue
-
         reps = []
         url_siguiente = None
 
@@ -545,7 +540,7 @@ def gestionar(estado, r, decision, respuesta, contadores):
         if MAX_RESPUESTAS_POR_EJECUCION > 0 and contadores["contestadas"] >= MAX_RESPUESTAS_POR_EJECUCION:
             motivo = "límite de respuestas de esta ejecución"
         elif len(respuesta) > MAX_RESPUESTA:
-            motivo = "la respuesta supera los 500 caracteres"
+            motivo = "la respuesta supera los 280 caracteres"
         if motivo:
             telegram(f"⚠️ No contesto ({motivo}) @{usuario}:\n{texto}\n\n"
                      f"Respuesta sugerida:\n{respuesta}\n\n{enlace}")
@@ -558,7 +553,6 @@ def gestionar(estado, r, decision, respuesta, contadores):
         contadores["contestadas"] += 1
         return
 
-  
     # decision == "no": comentario normal, te avisa a ti para que contestes tú.
     telegram(f"💬 @{usuario}:\n{texto}\n\n{enlace}")
     contadores["avisos"] += 1
