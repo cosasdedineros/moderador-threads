@@ -26,7 +26,7 @@ import requests
 # ------------------------- Ajustes -------------------------
 DIAS_REVISION = 0                  # solo se revisan posts de los últimos N días
 MAX_POSTS = 25                     # máximo de posts a revisar por ejecución
-MAX_RESPUESTAS_POR_EJECUCION = 100   # tope de respuestas automáticas por ejecución
+MAX_RESPUESTAS_POR_EJECUCION = 0   # tope de respuestas automáticas por ejecución
 MAX_COMENTARIOS_POR_EJECUCION = 20 # tope de llamadas a Gemini por ejecución; el resto espera a la siguiente
 PAUSA_ENTRE_LLAMADAS = 4           # segundos entre llamadas a Gemini (cuota del plan gratuito)
 MAX_TEXTO = 500                    # caracteres de cada comentario que se envían
@@ -447,21 +447,44 @@ def threads_get(ruta, **params):
 
 
 def leer_respuestas(yo):
-    """Respuestas (de otras personas) a tus posts de los últimos DIAS_REVISION días.
-    Cada respuesta lleva también el texto de su post en 'post_texto'."""
+    """Respuestas de otras personas a tus posts."""
     desde = datetime.now(timezone.utc) - timedelta(days=DIAS_REVISION)
-    posts = threads_get("me/threads", fields="id,text,timestamp", limit=MAX_POSTS).get("data", [])
+    posts = threads_get(
+        "me/threads",
+        fields="id,text,timestamp",
+        limit=MAX_POSTS
+    ).get("data", [])
+
     resultado = []
+
     for p in posts:
         if datetime.strptime(p["timestamp"], "%Y-%m-%dT%H:%M:%S%z") < desde:
             continue
-        reps = threads_get(f"{p['id']}/replies",
-                           fields="id,text,username,permalink,timestamp",
-                           limit=50).get("data", [])
+
+        reps = []
+        url_siguiente = None
+
+        while True:
+            if url_siguiente:
+                pagina = llamar("GET", url_siguiente)
+            else:
+                pagina = threads_get(
+                    f"{p['id']}/replies",
+                    fields="id,text,username,permalink,timestamp",
+                    limit=50
+                )
+
+            reps.extend(pagina.get("data", []))
+            url_siguiente = pagina.get("paging", {}).get("next")
+
+            if not url_siguiente:
+                break
+
         for r in reps:
             if r.get("username") != yo:
                 r["post_texto"] = p.get("text") or "(post sin texto)"
                 resultado.append(r)
+
     return resultado
 
 
@@ -519,7 +542,7 @@ def gestionar(estado, r, decision, respuesta, contadores):
 
     if decision == "responder":
         motivo = None
-        if contadores["contestadas"] >= MAX_RESPUESTAS_POR_EJECUCION:
+        if MAX_RESPUESTAS_POR_EJECUCION > 0 and contadores["contestadas"] >= MAX_RESPUESTAS_POR_EJECUCION:
             motivo = "límite de respuestas de esta ejecución"
         elif len(respuesta) > MAX_RESPUESTA:
             motivo = "la respuesta supera los 500 caracteres"
