@@ -19,7 +19,8 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -455,7 +456,17 @@ def leer_respuestas(yo):
 
     resultado = []
 
+    zona = ZoneInfo("Europe/Madrid")
+    hoy_local = datetime.now(zona).date()
+    ayer_local = hoy_local - timedelta(days=1)
+
     for p in posts:
+        fecha_post = datetime.strptime(
+            p["timestamp"], "%Y-%m-%dT%H:%M:%S%z"
+        ).astimezone(zona).date()
+
+        if fecha_post < ayer_local:
+            continue
         reps = []
         url_siguiente = None
 
