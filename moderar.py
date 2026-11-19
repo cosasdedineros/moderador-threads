@@ -24,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 
 # ------------------------- Ajustes -------------------------
-DIAS_REVISION = 2                  # solo se revisan posts de los últimos N días
+DIAS_REVISION = 30                  # solo se revisan posts de los últimos N días
 MAX_POSTS = 25                     # máximo de posts a revisar por ejecución
 MAX_RESPUESTAS_POR_EJECUCION = 0   # tope de respuestas automáticas por ejecución
 MAX_COMENTARIOS_POR_EJECUCION = 20 # tope de llamadas a Gemini por ejecución; el resto espera a la siguiente
@@ -575,7 +575,7 @@ def threads_get(ruta, **params):
 
 
 def leer_respuestas(yo):
-    """Respuestas de otras personas a tus posts."""
+    """Lee conversaciones y excluye comentarios que ya tienen respuesta nuestra."""
     desde = datetime.now(timezone.utc) - timedelta(days=DIAS_REVISION)
     posts = threads_get(
         "me/threads",
@@ -589,7 +589,9 @@ def leer_respuestas(yo):
         if datetime.strptime(p["timestamp"], "%Y-%m-%dT%H:%M:%S%z") < desde:
             continue
 
-        reps = []
+        # /conversation devuelve las respuestas directas y las respuestas anidadas.
+        # Así podemos detectar si el titular de la cuenta ya contestó manualmente.
+        conversacion = []
         url_siguiente = None
 
         while True:
@@ -597,21 +599,40 @@ def leer_respuestas(yo):
                 pagina = llamar("GET", url_siguiente)
             else:
                 pagina = threads_get(
-                    f"{p['id']}/replies",
-                    fields="id,text,username,permalink,timestamp",
-                    limit=50
+                    f"{p['id']}/conversation",
+                    fields=("id,text,username,permalink,timestamp,has_replies,"
+                            "is_reply_owned_by_me,replied_to"),
+                    limit=50,
+                    reverse="false"
                 )
 
-            reps.extend(pagina.get("data", []))
+            conversacion.extend(pagina.get("data", []))
             url_siguiente = pagina.get("paging", {}).get("next")
 
             if not url_siguiente:
                 break
 
-        for r in reps:
-            if r.get("username") != yo:
-                r["post_texto"] = p.get("text") or "(post sin texto)"
-                resultado.append(r)
+        # IDs de comentarios a los que ya has respondido tú manualmente.
+        respondidos_por_mi = {
+            item.get("replied_to", {}).get("id")
+            for item in conversacion
+            if item.get("replied_to", {}).get("id")
+            and (item.get("is_reply_owned_by_me") is True
+                 or item.get("username") == yo)
+        }
+
+        for r in conversacion:
+            # Solo comentarios directos al post; no procesamos respuestas
+            # anidadas de otros usuarios como si fueran comentarios nuevos.
+            if r.get("replied_to", {}).get("id") != p["id"]:
+                continue
+            if r.get("username") == yo:
+                continue
+            if r.get("id") in respondidos_por_mi:
+                continue
+
+            r["post_texto"] = p.get("text") or "(post sin texto)"
+            resultado.append(r)
 
     return resultado
 
@@ -673,7 +694,7 @@ def gestionar(estado, r, decision, respuesta, contadores):
         if MAX_RESPUESTAS_POR_EJECUCION > 0 and contadores["contestadas"] >= MAX_RESPUESTAS_POR_EJECUCION:
             motivo = "límite de respuestas de esta ejecución"
         elif len(respuesta) > MAX_RESPUESTA:
-            motivo = "la respuesta supera los 500 caracteres"
+            motivo = f"la respuesta supera los {MAX_RESPUESTA} caracteres"
         if motivo:
             telegram(f"⚠️ No contesto ({motivo}) @{usuario}:\n{texto}\n\n"
                      f"Respuesta sugerida:\n{respuesta}\n\n{enlace}")
